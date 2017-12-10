@@ -1,0 +1,89 @@
+---
+title: "Practical ML Project"
+output: html_document
+---
+
+```{r}
+library(caret); library(randomForest); library(rpart)
+```
+
+# Read in data
+
+```{r}
+trainLink <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testLink <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+train <- read.csv(url(trainLink), na.strings = c("NA", "#DIV/0!", "") )
+test <- read.csv(url(testLink), na.strings = c("NA", "#DIV/0!", "") )
+dim(train); dim(test)
+```
+
+# Clean up the data
+```{r}
+## Remove any NA rows
+
+train2 <- train[, colSums(is.na(train)) == 0]
+test <- test[, colSums(is.na(test)) == 0]
+dim(train2); dim(test)
+```
+
+```{r}
+## Get rid of things that don't look necessary to how well subjects lift
+
+classe <- train2$classe
+train3 <- train2[, sapply(train2, is.numeric)]
+trainClean <- train3[, 5:56]
+trainClean$classe <- classe
+
+test2 <- test[, sapply(test, is.numeric)]
+testFinal <- test2[, 5:57]
+dim(trainClean); dim(testFinal)
+```
+
+``` {r}
+# Split trainClean into training and test sets
+
+set.seed(1234)
+inTrain <- createDataPartition(y=trainClean$classe, p=0.7, list=F)
+training <- trainClean[inTrain,]
+testing <- trainClean[-inTrain,]
+dim(training); dim(testing)
+```
+
+# Building models 
+``` {r}
+## Let's try a classification tree
+
+modTree <- train(classe ~ ., data=training, method="rpart")
+modTree$finalModel
+plot(modTree$finalModel)
+text(modTree$finalModel, pretty=0)
+
+predictTree <- predict(modTree, newdata = testing)
+confusionMatrix(predictTree, testing$classe)
+
+## The accuracy rate is not very good
+```
+
+``` {r}
+## Let's try a random forest
+## I'm going to run a random forest model using 5 fold cross-validation
+
+modRF <- train(classe ~ ., data=training, method="rf", trControl = trainControl(method="cv", number = 5))
+plot(modRF)
+
+predictRF <- predict(modRF, newdata = testing)
+confusionMatrix(predictRF, testing$classe)
+
+## Yowza, the accuracy of this model is 0.9951, which would yield a 0.0049 out-of-sample error
+```
+
+#### I attempted to also fit a gbm model, but the package is not cooperating with my cpu. Therefore, due to the high performance of the random forest model, this is the final model I'm using.
+
+# Predict on the test set of 20 observations 
+```{r}
+predictFinal <- predict(modRF, newdata = testFinal)
+predictFinal
+
+# PredictFinal predicts the classe of the 20 test set observations
+```
